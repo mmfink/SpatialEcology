@@ -22,10 +22,11 @@ nc_close(nc)
 ## Assumes full timeperiod of interest (historic and future) in same file.
 ##-----------
 nc <- nc_open(inpath)
+nc  #pay attention to order of dimensions, and repeat them exactly in 'start' and 'count' below
 v1 <- nc$var[[1]]
 lonsize <- v1$varsize[1] # X dimension
 latsize <- v1$varsize[2] # Y dimension
-endcount <- v1$varsize[3]
+#endcount <- v1$varsize[3] # use instead of endh or endf if you want to go all the way to end
 starth <- 1 #starting time index for historic data
 endh <- 30  #count of historic data slice (i.e., years)
 startf <- 70 #starting time index for future data
@@ -38,3 +39,24 @@ hist(datahistoric, col = "gray", main = varname, xlab = vaxis)
 hist(datafuture, col = "gray", main = varname, xlab = vaxis)
 nc_close(nc)
 ##-----------
+## Single timeslice:
+library(raster)
+nc <- nc_open(inpath)
+nc #pay attention to order of dimensions, and repeat them exactly in 'start' and 'count' below
+v1 <- nc$var[[1]]
+lonsize <- v1$varsize[1]
+latsize <- v1$varsize[2]
+timeidx <- 42 # the index of the time (year) you want
+dataslice <- ncvar_get(nc, v1, start = c(1, 1, timeidx), count = c(lonsize, latsize, 1))
+ras <- raster(dataslice)
+plot(ras) #odds are, this will not be facing north = up
+#try transposing
+rast <- t(ras)
+plot(rast)
+#or rotating
+rasr <- rotate(ras)
+plot(rasr)
+#or flipping
+rasf <- flip(ras, 'y')
+plot(rasf)
+nc_close(nc)
