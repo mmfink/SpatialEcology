@@ -1,7 +1,7 @@
 SpatialEcology
 ==============
 
-A collection of tools in Python and R for processing and analyzing ecological and environmental data.
+A collection of tools in Python and R for processing, visualizing, and analyzing ecological and environmental data.
 
 This repository is under active development and is not (nor may it ever be) a standalone package or app. Use at your own discretion.
 

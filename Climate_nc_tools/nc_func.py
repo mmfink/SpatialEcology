@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Oct 31, 2017 Last updated 03/21/2018
+Created on Tue Oct 31, 2017 Last updated 06/13/2018
 
 Author:  Michelle M. Fink
          Colorado Natural Heritage Program, Colorado State University
@@ -159,3 +159,29 @@ def new_nc(array, timeslice, yslice, xslice, outname, **kwargs):
     out_ds.sync()
     out_ds.close()
     print 'Created ' + outname
+
+def clipindex_fromXY(full_uleft, full_lright, uleft, lright, stepx, stepy=None):
+    """
+    Gets the XY index values of a smaller area than a netCDF's full extent. Use
+    to clip out a geographic subset of the data.
+    Assumes a zero-based index.
+
+    full_uleft = tuple; XY coordinates of full extent upper left corner
+    full_lright = tuple; XY coordinates of full extent lower right corner
+    uleft = tuple; XY coordinates of the desired smaller extent upper left
+    lright = tuple; XY coordinates of the desired smaller extent lower right
+    stepx = number; pixel size (width) in coordinate system units
+    stepy = number; pixel size (height) in coordinate system units
+        Only use stepy if width != height
+
+    returns tuple of integer index numbers of the smaller extent.
+    """
+    if stepy == None:
+        stepy = stepx
+
+    clip_idx_x1 = int(round((uleft[0] - full_uleft[0]) / stepx))
+    clip_idx_x2 = int(round(clip_idx_x1 + ((lright[0] - uleft[0]) / stepx)))
+    clip_idx_y2 = int(round((lright[1] - full_lright[1]) / stepy))
+    clip_idx_y1 = int(round(clip_idx_y2 + ((uleft[1] - lright[1]) / stepy)))
+
+    return(clip_idx_x1, clip_idx_y1, clip_idx_x2, clip_idx_y2)
