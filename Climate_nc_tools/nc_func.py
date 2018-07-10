@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Oct 31, 2017 Last updated 06/13/2018
+Created on Tue Oct 31, 2017 Last updated 07/10/2018
 
 Author:  Michelle M. Fink
          Colorado Natural Heritage Program, Colorado State University
@@ -58,6 +58,8 @@ def raster2array(ras_name, flip=True):
     ras_tif = None
     if flip:
         ras_ary = reverse(ras_data)
+    else:
+        ras_ary = ras_data
     return ras_ary
 
 def array2raster(new_ras_file, array=None, *arglist):
@@ -185,3 +187,48 @@ def clipindex_fromXY(full_uleft, full_lright, uleft, lright, stepx, stepy=None):
     clip_idx_y1 = int(round(clip_idx_y2 + ((uleft[1] - lright[1]) / stepy)))
 
     return(clip_idx_x1, clip_idx_y1, clip_idx_x2, clip_idx_y2)
+
+def nc2d_from_raster(ras_name, outname, **kwargs):
+    """Create a new 2-dimensional netCDF file from a geotiff raster
+    some code adapted from https://gis.stackexchange.com/questions/42790/
+    gdal-and-python-how-to-get-coordinates-for-all-cells-having-a-specific-value#42846
+    """
+    argdic = {'varname':'var', 'xname':'longitude', 'yname':'latitude',
+              'metadatastr':''}
+    if kwargs != {}:
+        if 'varname' in kwargs:
+            argdic['varname'] = kwargs['varname']
+        if 'xname' in kwargs:
+            argdic['xname'] = kwargs['xname']
+        if 'yname' in kwargs:
+            argdic['yname'] = kwargs['yname']
+        if 'metadatastr' in kwargs:
+            argdic['metadatastr'] = kwargs['metadatastr']
+
+    ras_tif = gdal.Open(ras_name)
+    ras_band = ras_tif.GetRasterBand(1)
+    ras_data = ras_band.ReadAsArray()
+    (upper_left_x, x_size, x_rotation, upper_left_y, y_rotation, y_size) = ras_tif.GetGeoTransform()
+    (y_index, x_index) = np.nonzero(ras_data)
+    x_coords = x_index * x_size + upper_left_x + (x_size / 2)
+    y_coords = y_index * y_size + upper_left_y + (y_size / 2)
+    x = ras_data.shape[1]
+    y = ras_data.shape[0]
+    x_slice = x_coords.reshape(y, x)
+    y_slice = y_coords.reshape(y, x)
+    out_ds = Dataset(outname, 'w', format='NETCDF4_CLASSIC')
+    out_ds.createDimension(argdic['yname'], y)
+    out_ds.createDimension(argdic['xname'], x)
+    lat_var = out_ds.createVariable(argdic['yname'], 'f4', (argdic['yname'],))
+    lon_var = out_ds.createVariable(argdic['xname'], 'f4', (argdic['xname'],))
+    cvar = out_ds.createVariable(argdic['varname'], 'f4', (argdic['yname'], argdic['xname'],))
+    lon_var[:] = x_slice[0, :]
+    lat_var[:] = y_slice[:, 0]
+    cvar[:] = ras_data
+    ds_att = {u'description': argdic['metadatastr'],
+              u'history': 'Created ' + time.ctime(time.time())}
+    out_ds.setncatts(ds_att)
+    out_ds.sync()
+    out_ds.close()
+    print 'Created ' + outname
+
