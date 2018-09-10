@@ -1,0 +1,159 @@
+---
+title: "Pre-model parameter winnowing R Notebook"
+author: "Michelle M. Fink, Colorado Natural Heritage Program"
+output:
+  html_document:
+    df_print: kable
+    highlight: tango
+    theme: readable
+---
+####Last revised: `r Sys.Date()`
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. It requires the libraries **gam** and **dplyr** to run the code chunks, although it could certainly be re-written to not use **dplyr**. Built with R `r getRversion()`.
+
+```{r, echo=FALSE, message=FALSE}
+require(gam)
+library(utils)
+library(dplyr)
+```
+**Purpose:** To explore ways to automate selecting the most useful subset of environmental variables to use in an inductive species distribution model. Good practice is to model using only those variables that:  
+  1. make ecological sense,  
+  2. represent environmental conditions that explain (or act as a proxy for something else that explains) a species' presence or absence across the landscape, and  
+  3. are not highly correlated with (and therefore confound) each other.  
+
+I doubt there's a way to automate \#1, but this code tries to handle the rest.
+
+There are two variables in the following code chunk that need your attention.  
+*input.file* is the path and name of the data set to examine. It should be a comma separated text file (csv) with the first row as column names. Each row represents a sample point (**XYs removed**) for the species. The first column needs to be the species response (usually 1 = presence, 0 = absence), and the remaining columns are the environmental variable values at that point. Continuous variables only, please. *This code does **NOT** handle categorical variables!*  
+*min.cor* is the correlation threshold value (0-1) **above** which you want to consider variables to be too highly correlated.
+```{r}
+input.file <- "C:/Michelle/Code/VariableSelectionFunction_cforest/test.csv"
+min.cor <- 0.7
+```
+
+## Examining the variables
+The following two code chunks are based on Marian Talbert's code in *PairsExplore.r* and related modules in the **VisTrails-SAHM** software, Copyright (C) 2010-2012, USGS Fort Collins Science Center. No endorsement or promotion of this notebook is implied.
+
+First we want to calculate the per variable deviance explained by fitting either a GLM or GAM using the species presence/absence response against each variable predictor. GLM is tried first, but the model will occasionally fail to converge, in which case a GAM is used instead.
+
+A new data.frame is created (*vartbl*) to hold the deviance explained value (as percent 0-100) for each variable.
+```{r}
+dat <- read.csv(input.file)
+response.col <- names(dat[1])
+var.cols <- names(dat[2:ncol(dat)])
+y <- dat %>% pull(var = response.col)
+wgt <- rep(1, times = length(y))
+vartbl <- tibble("invar" = vector(), "dev_exp" = vector())
+
+for (i in var.cols) {
+  x <- dat %>% pull(var = i)
+  g <- try(gam(y ~ x, family = "binomial", weights = wgt), silent = TRUE)
+  dev.broke <- try((1-g$dev/g$null.deviance)<0, silent = TRUE)
+  if(class(dev.broke) == "try-error") {dev.broke = TRUE}
+  if("try-error"%in%class(g) | dev.broke){
+    #gam.failed = TRUE
+    g <- glm(y~x+x^2, weights=wgt, family = "binomial")
+    y.fit <- predict(g, type = "response")
+  } else {
+    y.fit <- predict.Gam(g, type = "response")
+    #gam.failed=FALSE
+  }
+  vartbl <- vartbl %>% add_row(invar = i, dev_exp = 100*(1-g$dev/g$null.deviance))
+  #print(gam.failed)
+}
+```
+
+Next we create a pairwise correlation matrix using whichever of Pearson, Spearman, or Kendall methods produces the highest value.
+**Note** that Kendall takes a long time compared to the other two methods. It has been limited to a sample size of 2,000 to help mitigate that issue. The test data is only n = 1,962, however.
+
+Finally, we add a new column to *vartbl* that counts the number of correlated variables (> threshold) for each variable.
+```{r}
+cmat <- cor(dat[2:ncol(dat)], use = "pairwise.complete.obs")
+smat <- cor(dat[2:ncol(dat)], method = "spearman", use = "pairwise.complete.obs")
+
+if (dim(dat)[1] < 2000) {
+  kmat <- cor(dat[2:ncol(dat)], method = "kendall", use = "pairwise.complete.obs")
+} else {
+  s <- sample(seq(1:dim(dat)[1]), size = 2000, replace = FALSE)
+  kmat <- cor(dat[s, 2:ncol(dat)], method = "kendall", use = "pairwise.complete.obs")
+}
+
+cmat = pmax(abs(cmat), abs(smat), abs(kmat), na.rm = TRUE)
+cmat[is.na(cmat)] <- 0
+High.cor <- apply(abs(cmat) > min.cor, 2, sum) - 1
+corIssues <- tibble(invar = attr(High.cor, "names"), num_cor = High.cor)
+vartbl <- left_join(vartbl, corIssues, by = c("invar"))
+vartbl
+```
+
+So that's the information we need to proceed. Now on to what to do about it.
+
+## Emphasizing explanatory power while reducing correlation
+The following approach prioritizes deviance explained over correlation.
+
+Process: Get a Boolean matrix to see which are correlated, then populate a new matrix to replace correlation values > threshold with row-wise deviance explained, and zeroes everywhere else.
+```{r}
+bmat <- apply(abs(cmat) > min.cor, 2, identity)
+dmat <- matrix(nrow = nrow(bmat), ncol = ncol(bmat), dimnames = dimnames(bmat))
+
+for(i in 1:nrow(bmat)){
+  for(j in 1:ncol(bmat)){
+    if(bmat[i,j]){
+      rname <- dimnames(bmat)[[1]][i]
+      dmat[i,j] <- vartbl$dev_exp[vartbl$invar == rname]
+    } else {
+      dmat[i,j] <- 0
+    }
+  }
+}
+```
+
+Then get the max deviance explained per column, and choose that variable. Strip out duplicates.
+```{r}
+keepers <- vector("list", ncol(dmat))
+
+for(j in 1:ncol(dmat)){
+  z <- max(dmat[,j])
+  if(z == 0){
+    keepers[j] <- dimnames(bmat)[[2]][j]
+  } else {
+    i <- which.max(dmat[,j])
+    keepers[j] <- dimnames(bmat)[[1]][i]
+  }
+}
+
+ukeep <- unique(keepers)
+filter(vartbl, invar %in% ukeep)
+```
+
+This has reduced the original set of 23 variables down to 8. However, this isn't perfect. For example, with the test data, it keeps both yrly_pr and s2_pr, which are 89% correlated, and s1_tmin and s4_tmin (94%). Yes, these all have (relatively) decent explanatory power compared to the dropped variables, but since the two temperature variables are essentially the same data (winter minimum versus autumn minimum), including both would likely throw off the model.
+
+A better approach might be going down the list in *vartbl* and seeing what isn't correlated to the top *dev_exp* value. That's closer to how I do it manually, actually. I want as much *unique* data as possible, even if individual variables don't explain much by themselves.
+
+## Eliminate correlation from the top variable down
+Go through each variable in descending order of deviance explained and eliminate any other variables too highly correlated with it.
+```{r}
+diag(bmat) <- F
+vartbl$keep <- 0
+vartbl <- vartbl %>% arrange(desc(dev_exp))
+vartbl[1,4] <- 1
+if(vartbl[1,3] == (nrow(vartbl) - 1)){
+  # We're done, the top variable is highly correlated with all other variables, so this is it.
+  # Might want to scrounge around for some other variables somewhere and try again.
+  ukeep <- vartbl[1,1]
+} else {
+  for(i in 1:nrow(vartbl)){
+    if((vartbl[i,3] > 0) & (vartbl[i,4] != 99)){
+      chk.var <- as.character(vartbl[i,1])
+      out <- which((bmat)[, chk.var])
+      vartbl$keep <- if_else(vartbl$invar %in% names(out), 99, vartbl$keep)
+    }
+    if(vartbl[i,4] == 0){vartbl[i,4] <- 1}
+  }
+  ukeep <- vartbl %>% filter(keep == 1)
+}
+
+ukeep
+```
+
+This has resulted in a slightly different list of 8 variables (I think the number is a coincidence?), all of which are uncorrelated enough that it makes sense to use them in the model. And the top explanatory variable will always make it in the list.
