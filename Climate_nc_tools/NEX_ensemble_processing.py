@@ -1,26 +1,36 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Jan 25 10:59:32 2018
-
-@author: Michelle M. Fink
-Colorado Natural Heritage Program, Colorado State University
-
-License: Creative Commons Attribution 4.0 International (CC BY 4.0)
- http://creativecommons.org/licenses/by/4.0/
-
-Purpose: Use NEX-DCP30 ensemble averages (https://cds.nccs.nasa.gov/nex/),
+Use NEX-DCP30 ensemble averages (https://cds.nccs.nasa.gov/nex/),
  RCP8.5 & Historical datasets to create seasonal temperature and precip metrics
  within the NPS Midwest region.
 
  This file is an example of using the nc_func and watyrcalcs modules.
 
+*** Notes on the data used ***
  historical = 1970-2000 (actually 12/1999)
  future = 2036-2065
 
  ppt units are kg m-2 s-1:     1 kg m-2 s-1 = 2600000 mm/month
  temperature units are Kelvin: C = K - 273.15
+******
 
-Built on python 2.7.14, numpy 1.13.3, netcdf4 1.4.0
+@author: Michelle M. Fink, michelle.fink@colostate.edu
+         Colorado Natural Heritage Program, Colorado State University
+Created on Jan 25 10:59:32 2018 - Built on python 2.7.14, numpy 1.13.3, netcdf4 1.4.0
+
+Code licensed under the GNU General Public License version 3.
+This script is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see https://www.gnu.org/licenses/ 
 """
 
 import os

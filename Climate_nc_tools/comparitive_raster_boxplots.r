@@ -1,6 +1,8 @@
+## The following is just a snippet. Obviously, change to suit the data.
+
 library("raster")
 setwd("Path/To/Geotiffs")
-##The following is just a template. Obviously, change to suit the data.
+
 eddi_hw <- raster("EDDI_2Freq_canesm2_rcp85.tif")
 eddi_ff <- raster("EDDI_2Freq_cesm1_bgc_rcp85.tif")
 eddi_ww <- raster("EDDI_2Freq_gfdl_esm2m_rcp45.tif")

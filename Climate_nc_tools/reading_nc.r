@@ -1,3 +1,8 @@
+## These are snippets (separated by '-----------') that have been adapted
+## from various sources that I failed to keep track of at the time.
+## Therefore I (Michelle Fink) do not claim any authorship or license to
+## this particular code.
+
 library(ncdf4)
 inpath <- "Path/To/file.nc"
 

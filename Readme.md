@@ -9,10 +9,12 @@ Climate_nc_tools: Reading and analyzing netCDF climate projection models.
 
 SDM_tools: Processing input presence/absence points for species distribution modeling.
 
-## Licensing
-[Creative Commons Attribution 4.0 International (CC BY 4.0)](http://creativecommons.org/licenses/by/4.0/)
+## License
+Code licensed under the GNU General Public License version 3. This script is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.  
 
-## Disclaimer
-See Section 5 of the license for Disclaimer of Warranties and Limitation of
-Liability. This disclaimer applies to the author, The Colorado Natural Heritage
-Program, Colorado State University, and the State of Colorado.
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with this program. If not, see https://www.gnu.org/licenses/

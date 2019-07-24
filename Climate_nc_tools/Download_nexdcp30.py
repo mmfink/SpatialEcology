@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-Author: Michelle M. Fink
-Colorado Natural Heritage Program, Colorado State University
-
-License: Creative Commons Attribution 4.0 International (CC BY 4.0)
- http://creativecommons.org/licenses/by/4.0/
-
-Purpose: Batch download of netCDF files from NEX Amazon AWS bucket
+Batch download of netCDF files from NEX Amazon AWS bucket
 (nasanex.s3.amazonaws.com)
+
+@author: Michelle M. Fink, michelle.fink@colostate.edu
+         Colorado Natural Heritage Program, Colorado State University
+Created on 05/17/2018 - Built on Python 2.7.14
 
 *IMPORTANT* This script requires wget. On Windows, it needs to be run through
 the MinGW shell (or equivalent) in order for the wget command to be recognized.
@@ -16,10 +14,19 @@ You must edit the variables below to match the data you want to download.
 The code assumes you will always want the historic as well as the future
 projected versions of each model.
 
-Disclaimer:
-See Section 5 of the license for Disclaimer of Warranties and Limitation of
-Liability. This disclaimer applies to the author, The Colorado Natural Heritage
-Program, Colorado State University, and the State of Colorado.
+Code licensed under the GNU General Public License version 3.
+This script is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see https://www.gnu.org/licenses/
 """
 import subprocess
 import sys
