@@ -5,7 +5,7 @@ The idea here is to make sure that Winter includes the December from the year *b
 
 @author: Michelle M. Fink, michelle.fink@colostate.edu
          Colorado Natural Heritage Program, Colorado State University
-Created on Thu Oct 24 10:54:06 2017 Last updated 03/21/2018 - Built on Python 2.7.14
+Created on Oct 24, 2017 Last updated 07/22/2019 - Built on Python 2.7.14
 
 Code licensed under the GNU General Public License version 3.
 This script is free software: you can redistribute it and/or modify
@@ -26,6 +26,7 @@ import numpy as np
 from netCDF4 import date2num
 
 SEASONS_LU = {1:1, 2:1, 12:1, 3:2, 4:2, 5:2, 6:3, 7:3, 8:3, 9:4, 10:4, 11:4}
+TWOSEASONS_LU = {1:5, 2:5, 12:5, 3:5, 4:5, 5:5, 6:6, 7:6, 8:6, 9:6, 10:6, 11:6}
 WATERYR_LU = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0, 10:-1, 11:-1, 12:-1}
 ANN_LU = {1:0, 2:0, 12:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0, 10:0, 11:0}
 
@@ -51,6 +52,10 @@ def clean_name(inmodel, inseason, invar):
         when = "autumn"
     elif inseason == 0:
         when = "annual"
+    elif inseason == 5:
+        when = "winter_spring"
+    elif inseason == 6:
+        when = "summer_fall"
     else:
         when = "monthly"
     namestr = "_".join([modname, when, invar])
@@ -74,8 +79,10 @@ def watyrmask(orig_dates, datelist, yrlist, season, **kwargs):
     mths = np.array([a_date.month for a_date in orig_dates], dtype=np.int)
     if season == 0:
         seasons = np.array([ANN_LU[m] for m in mths], dtype=np.int)
-    else:
+    elif season > 0 & season < 5:
         seasons = np.array([SEASONS_LU[m] for m in mths], dtype=np.int)
+    elif season == 5 | season == 6:
+        seasons = np.array([TWOSEASONS_LU[m] for m in mths], dtype=np.int)
     omasks = []
     for a_yr in yrlist:
         omasks.append(np.ma.where(np.ma.logical_and(yrs == a_yr,
