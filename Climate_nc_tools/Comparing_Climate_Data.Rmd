@@ -1,0 +1,285 @@
+---
+title: "Comparing Climate Data"
+author: "Michelle Fink"
+date: "November 26, 2018"
+output:
+  ioslides_presentation:
+    fig_height: 5.5
+    fig_retina: null
+    fig_width: 8.5
+    highlight: tango
+    smaller: yes
+    widescreen: yes
+  beamer_presentation:
+    highlight: tango
+  slidy_presentation:
+    highlight: tango
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## WorldClim vs. NEX-DCP30
+<div class="columns-2">
+### WorldClim (UC-Berkely)
+- Monthly temperature and precipitation + 19 bioclimatic metrics
+- 30 arc-second (~800m) resolution
+- 'Current' interpolated from actual station data, averaged over 1960-1990 *more or less*
+    + interpolated using ANUSPLIN algorithm
+- 'Future' includes **2050** (2041-2060) and **2070** (2061-2080), for 17 GCMs & 4 RCPs
+    + downscaled and 'calibrated' using the Current dataset
+- Version 1 (2005), includes 'Current' and 'Future'
+- Version 2 (2016) meant to correct issues with v.1 *But is for Current (1970-2000) only*
+
+### NEX-DCP30 (NASA)
+- Modeled (not from station data), monthly temperature and precipitation
+- 30 arc-second (~800m) resolution
+- Bias Corrected Spatially Downscaled method, 33 GCMs (or ensemble) & 4 RCPs
+- 'Current' spans 1950 - 2005, all years individually available
+- 'Future' spans 2006 - 2099, all years individually available
+- From 2013
+- Michelle can create any combination of metrics from any timeperiod or model(s)
+</div>
+
+## Visualizing Differences
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(plyr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(raster)
+
+# Theme function -----------------------------------
+gg.theme <- function(type=c("clean","noax")[1],useArial = F){
+  # Changed 05/30/2018 [MMF] -
+  # Original had code to force fonts on Mac
+  # I don't think my tweaks quite work (on Windows) yet, but it doesn't break anything.
+  require(ggplot2)
+  if(useArial){
+    bf_font=windowsFonts("sans")
+  } else {bf_font=windowsFonts("serif")}
+
+  switch(type,
+         clean = theme_bw(base_size = 16, base_family=bf_font) +
+           theme(axis.text.x     = element_text(size = 14),
+                 axis.title.y    = element_text(vjust = +1.5),
+                 panel.grid.major  = element_blank(),
+                 panel.grid.minor  = element_blank(),
+                 legend.background = element_blank(),
+                 legend.key = element_blank(),
+                 panel.border = element_blank(),
+                 panel.background = element_blank(),
+                 axis.line  = element_line(colour = "black")),
+
+         noax = theme(line = element_blank(),
+                      text  = element_blank(),
+                      title = element_blank(),
+                      plot.background = element_blank(),
+                      panel.border = element_blank(),
+                      panel.background = element_blank())
+  )
+}
+
+#function to create geom_polygon calls
+fill_viol<-function(gr.df,gr,qtile=NULL,probs){
+  # SETUP VIOLIN QUANTILE PLOTS -----------------------------------
+  # This is adapted from: http://stackoverflow.com/questions/22278951/combining-violin-plot-with-box-plot
+  # Changed 05/30/2018 [MMF] -
+  # - filter out NA values that are generated when populations are not the same size
+  ifelse(is.null(qtile),{
+    cuts <- cut(gr.df$y, breaks = quantile(gr.df$y, probs, na.rm=T, type=3, include.lowest = T, right = T), na.rm=T)},{
+      cuts <- cut(gr.df$y, breaks = qtile, na.rm=T)
+    }
+  )
+  quants <- mutate(gr.df,
+                   x.l=x-violinwidth/2,
+                   x.r=x+violinwidth/2,
+                   cuts=cuts)
+
+  quants <- filter(quants, !is.na(cuts))
+
+  plotquants <- data.frame(x=c(quants$x.l,rev(quants$x.r)),
+                           y=c(quants$y,rev(quants$y)),
+                           id=c(quants$cuts,rev(quants$cuts)))
+
+  #plotquants <- filter(plotquants, !is.na(id))
+
+  #cut by quantile to create polygon id
+  geom <- geom_polygon(aes(x=x,y=y,fill=factor(id)),data=plotquants,alpha=1,na.rm = T)
+
+  return(list(quants=quants,plotquants=plotquants,geom=geom))
+}
+
+vioQtile <- function(gg=NULL,qtiles=NULL,probs=seq(0,1,.25),labels=paste(probs[-1]*100),withData=F,usecol=F){
+  require(ggplot2)
+  # SETUP VIOLIN QUANTILE PLOTS -----------------------------------
+  # This is adapted from: http://stackoverflow.com/questions/22278951/combining-violin-plot-with-box-plot
+  #
+  # Changed:
+  # - Deal with 'empty' quantile groups
+  # - Deal with original data
+  # - More input, more output
+  # Changed 05/30/2018 [MMF] - minor aesthetic tweaks
+  g.df <- ggplot_build(gg)$data[[1]]    # use ggbuild to get the outline co-ords
+
+  ifelse(is.null(qtiles),{
+    gg <- gg + lapply(unique(g.df$group), function(x) fill_viol(g.df[g.df$group==x, ],x,NULL,probs)$geom)},{
+      gg <- gg + lapply(unique(g.df$group), function(x) fill_viol(g.df[g.df$group==x, ],x,qtiles[x, ],probs)$geom)}
+  )
+
+  ifelse(usecol,{
+    gg <- gg +
+      scale_fill_hue(name="Quantile",labels=labels,guide=guide_legend(reverse=T,label.position="right"),h=c(250,300)) +
+      stat_summary(fun.y=mean, geom="point", size=5, color="grey50", shape=22, fill="red")},{
+        gg <- gg +
+          scale_fill_grey(name="Quantile",labels=labels,guide=guide_legend(reverse=T,label.position="right")) +
+          stat_summary(fun.y=mean, geom="point", size=3.5, color="grey50", shape=22, fill="white")
+      })
+
+  if(withData){
+    ifelse(is.null(qtiles),{
+      ggData <- lapply(unique(g.df$group), function(x) fill_viol(g.df[g.df$group==x,],x,NULL,probs))},{
+        ggData <- lapply(unique(g.df$group), function(x) fill_viol(g.df[g.df$group==x,],x,qtiles[x,],probs))
+      }
+    )
+    return(list(ggGraph=gg,ggData=ggData))
+  } else {
+    return(gg)
+  }
+}
+
+#------
+# Bring in the 'historic' rasters
+wc1_now <- raster("M:/GIS_Projects/BLM_ClimateChange/Source/current/current_bio05.tif")
+wc2_now <- raster("D:/GIS/Climate/WORLDCLIM/wc2_wus_bio5.tif")
+nex_now <- raster("M:/GIS_Projects/BLM_ClimateChange/Source/NEX_derived/historical_tasmax_NEXdcp30_season_3.tif")
+nxh_now <- raster("D:/GIS/Projects/BLM_AdaptationStrat/Env_inputs/s3_tmax_MIROC_ESM.tif")
+
+# Clip out Bent County for Current
+wc1n <- getValuesBlock(wc1_now, row=338, nrows=74, col=691, ncols=78)
+wc2n <- getValuesBlock(wc2_now, row=926, nrows=74, col=1382, ncols=78) #W. US
+nexn <- getValuesBlock(nex_now, row=338, nrows=74, col=691, ncols=78)
+nxhn <- getValuesBlock(nxh_now, row=368, nrows=74, col=1282, ncols=78) #PJ range
+
+rasdf <- tibble("WC1_now" = wc1n, "WC2_now" = wc2n, "NEX_now" = nexn, "NXH_now" = nxhn)
+xdf <- rasdf %>% gather(Model, MaxTemp, 1:4) #transpose columns to groups
+
+# Bring in the 'future' rasters
+wc1_future <- raster("M:/GIS_Projects/BLM_ClimateChange/Source/rcp85/rcp85_2050_bioclim_05.tif")
+#wc2_future # there isn't one for WC2
+nex_future <- raster("M:/GIS_Projects/BLM_ClimateChange/Source/NEX_derived/rcp85_tasmax_NEXdcp30_season_3.tif")
+nxh_future <- raster("D:/GIS/Projects/BLM_AdaptationStrat/Env_inputs/Future_2050/s3_tmax_MIROC_ESM.tif")
+
+# Clip out Bent County for Future
+wc1f <- getValuesBlock(wc1_future, row=338, nrows=74, col=691, ncols=78)
+wc2f <- seq(0.003465,20,0.003465)
+nexf <- getValuesBlock(nex_future, row=338, nrows=74, col=691, ncols=78)
+nxhf <- getValuesBlock(nxh_future, row=368, nrows=74, col=1282, ncols=78) #PJ range
+
+rasdf2 <- tibble("WC1_2050" = wc1f, "WC2_2050" = wc2f, "NEX_2050" = nexf, "NXH_2050" = nxhf)
+xdf2 <- rasdf2 %>% gather(Model, MaxTemp, 1:4) #transpose columns to groups
+xdf$MaxTempF <- xdf2$MaxTemp # Add to the previous data.frame
+
+LasAnimas <- c(32.17, 34.89, 33.61) #1971-2000 JJA mean max https://wrcc.dri.edu/cgi-bin/cliMAIN.pl?co4834
+
+mytheme <- gg.theme("clean", useArial=T)
+probs <- seq(0,1,.25)
+
+g.pv <- ggplot(xdf,aes(x=Model,y=MaxTemp)) +
+  geom_violin(aes(group=Model),scale="width",color="grey80",fill="grey80",trim=T, adjust=0.8)
+
+g.pv0 <- vioQtile(g.pv)
+
+g.pv0 + ggtitle("Summer maximum temperature (Bent Co)") + xlab("") + ylab("Celcius") +
+  ylim(30,39) + labs(tag = "Las Animas 1971-2000 summer maximum") +
+  geom_hline(aes(yintercept=mean(LasAnimas)), color="red") + mytheme +
+  theme(legend.position=c(0.11,0.8), legend.text=element_text(size=16),
+        legend.title=element_text(size=16), axis.text.x=element_text(size=18),
+        axis.text.y=element_text(size=18), axis.title.y=element_text(size=18, vjust=2.6),
+        title=element_text(size=20), plot.tag.position=c(0.5,0.465),
+        plot.tag=element_text(size=16, color="red"))
+```
+
+## Visualizing Differences
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+g.pv0 + ggtitle("Summer maximum temperature (Bent Co)") + xlab("") + ylab("Celcius") +
+  ylim(30,39) +
+  geom_violin(aes(y=MaxTempF, group=Model),scale="width",color="grey80",fill="purple",trim=T, adjust=0.8) +
+  geom_hline(aes(yintercept=mean(LasAnimas)), color="red") + mytheme +
+  theme(legend.position="none", axis.text.x=element_text(size=18),
+        axis.text.y=element_text(size=18), axis.title.y=element_text(size=18, vjust=2.6),
+        title=element_text(size=20))
+```
+
+## Visualizing Differences - A different county
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Clip out Morgan County for Current
+wc1n <- getValuesBlock(wc1_now, row=67, nrows=63, col=601, ncols=81)
+wc2n <- getValuesBlock(wc2_now, row=655, nrows=63, col=1292, ncols=81) #W. US
+nexn <- getValuesBlock(nex_now, row=67, nrows=63, col=601, ncols=81)
+nxhn <- getValuesBlock(nxh_now, row=97, nrows=63, col=1192, ncols=81) #PJ range
+
+rasdf <- tibble("WC1_now" = wc1n, "WC2_now" = wc2n, "NEX_now" = nexn, "NXH_now" = nxhn)
+xdf <- rasdf %>% gather(Model, MaxTemp, 1:4) #transpose columns to groups
+Ft.Morgan <- c(28.61, 32.11, 31) #1971-2000 JJA mean max https://wrcc.dri.edu/cgi-bin/cliMAIN.pl?co3038
+
+# Clip out Morgan County for Future
+wc1f <- getValuesBlock(wc1_future, row=67, nrows=63, col=601, ncols=81)
+wc2f <- seq(0,20,0.0039193)
+nexf <- getValuesBlock(nex_future, row=67, nrows=63, col=601, ncols=81)
+nxhf <- getValuesBlock(nxh_future, row=97, nrows=63, col=1192, ncols=81) #PJ range
+
+rasdf2 <- tibble("WC1_2050" = wc1f, "WC2_2050" = wc2f, "NEX_2050" = nexf, "NXH_2050" = nxhf)
+xdf2 <- rasdf2 %>% gather(Model, MaxTemp, 1:4) #transpose columns to groups
+xdf$MaxTempF <- xdf2$MaxTemp # Add to the previous data.frame
+
+g.pv <- ggplot(xdf,aes(x=Model,y=MaxTemp)) +
+  geom_violin(aes(group=Model),scale="width",color="grey80",fill="grey80",trim=T, adjust=0.8)
+
+g.pv0 <- vioQtile(g.pv)
+
+g.pv0 + ggtitle("Summer maximum temperature (Morgan Co)") + xlab("") + ylab("Celcius") +
+  ylim(29,37.5) + labs(tag = "Fort Morgan 1971-2000 summer maximum") +
+  geom_hline(aes(yintercept=mean(Ft.Morgan)), color="red") + mytheme +
+  theme(legend.position=c(0.11,0.8), legend.text=element_text(size=16),
+        legend.title=element_text(size=16), axis.text.x=element_text(size=18),
+        axis.text.y=element_text(size=18), axis.title.y=element_text(size=18, vjust=2.6),
+        title=element_text(size=20), plot.tag.position=c(0.5,0.33),
+        plot.tag=element_text(size=16, color="red"))
+```
+
+## Visualizing Differences - A different county
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+g.pv0 + ggtitle("Summer maximum temperature (Morgan Co)") + xlab("") + ylab("Celcius") +
+  ylim(29,37.5) +
+  geom_violin(aes(y=MaxTempF, group=Model),scale="width",color="grey80",fill="purple",trim=T, adjust=0.8) +
+  geom_hline(aes(yintercept=mean(Ft.Morgan)), color="red") + mytheme +
+  theme(legend.position="none", axis.text.x=element_text(size=18),
+        axis.text.y=element_text(size=18), axis.title.y=element_text(size=18, vjust=2.6),
+        title=element_text(size=20))
+```
+
+## The Bioclimatic Variables
+<div style="float: left; width: 50%;">
+- BIO1 = Annual Mean Temperature
+- BIO2 = Mean Diurnal Range (Mean of monthly (max temp - min temp))
+- BIO3 = Isothermality (BIO2/BIO7) (* 100)
+- BIO4 = Temperature Seasonality (standard deviation *100)
+- BIO5 = Max Temperature of Warmest Month
+- BIO6 = Min Temperature of Coldest Month
+- BIO7 = Temperature Annual Range (BIO5-BIO6)
+- BIO8 = Mean Temperature of Wettest Quarter
+- BIO9 = Mean Temperature of Driest Quarter
+- BIO10 = Mean Temperature of Warmest Quarter
+- BIO11 = Mean Temperature of Coldest Quarter
+</div>
+<div style="float: right; width: 50%;">
+- BIO12 = Annual Precipitation
+- BIO13 = Precipitation of Wettest Month
+- BIO14 = Precipitation of Driest Month
+- BIO15 = Precipitation Seasonality (Coefficient of Variation)
+- BIO16 = Precipitation of Wettest Quarter
+- BIO17 = Precipitation of Driest Quarter
+- BIO18 = Precipitation of Warmest Quarter
+- BIO19 = Precipitation of Coldest Quarter
+</div>
