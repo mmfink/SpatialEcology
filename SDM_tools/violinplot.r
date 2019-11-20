@@ -3,7 +3,7 @@
 #
 # Michelle M. Fink, michelle.fink@colostate.edu
 # Colorado Natural Heritage Program, Colorado State University
-# Code Last Modified 05/30/2018. 
+# Code Last Modified 11/20/2019.
 #
 # Adapted from:
 # https://www.shinyapps.org/apps/RGraphCompendium/index.php
@@ -27,14 +27,13 @@
 
 # Theme function -----------------------------------
 gg.theme <- function(type=c("clean","noax")[1],useArial = F){
-  # Changed 05/30/2018 [MMF] -
-  # Original had code to force fonts on Mac
-  # I don't think my tweaks quite work (on Windows) yet, but it doesn't break anything.
+  # Last changed 11/20/2019 [MMF] -
+  # Removed code to force fonts on Mac and tweaked Windows font handling
   require(ggplot2)
   if(useArial){
-    bf_font="Sans"
-  } else {bf_font="Serif"}
-  
+    bf_font=windowsFonts("sans")
+  } else {bf_font=windowsFonts("serif")}
+
   switch(type,
          clean = theme_bw(base_size = 16, base_family=bf_font) +
            theme(axis.text.x     = element_text(size = 14),
@@ -46,7 +45,7 @@ gg.theme <- function(type=c("clean","noax")[1],useArial = F){
                  panel.border = element_blank(),
                  panel.background = element_blank(),
                  axis.line  = element_line(colour = "black")),
-         
+
          noax = theme(line = element_blank(),
                       text  = element_blank(),
                       title = element_blank(),
@@ -57,11 +56,12 @@ gg.theme <- function(type=c("clean","noax")[1],useArial = F){
 }
 
 #function to create geom_polygon calls
-fill_viol<-function(gr.df,gr,qtile,probs){
+fill_viol<-function(gr.df,gr,qtile=NULL,probs){
   # SETUP VIOLIN QUANTILE PLOTS -----------------------------------
   # This is adapted from: http://stackoverflow.com/questions/22278951/combining-violin-plot-with-box-plot
-  # Changed 05/30/2018 [MMF] - 
+  # Changed 05/30/2018 [MMF] -
   # - filter out NA values that are generated when populations are not the same size
+  # 11/20/2019 [MMF] - improve quantile handling
   ifelse(is.null(qtile),{
     cuts <- cut(gr.df$y, breaks = quantile(gr.df$y, probs, na.rm=T, type=3, include.lowest = T, right = T), na.rm=T)},{
       cuts <- cut(gr.df$y, breaks = qtile, na.rm=T)
@@ -71,22 +71,20 @@ fill_viol<-function(gr.df,gr,qtile,probs){
                    x.l=x-violinwidth/2,
                    x.r=x+violinwidth/2,
                    cuts=cuts)
-  
+
   quants <- filter(quants, !is.na(cuts))
-  
+
   plotquants <- data.frame(x=c(quants$x.l,rev(quants$x.r)),
                            y=c(quants$y,rev(quants$y)),
                            id=c(quants$cuts,rev(quants$cuts)))
-  
-  plotquants <- filter(plotquants, !is.na(id))
-  
+
   #cut by quantile to create polygon id
   geom <- geom_polygon(aes(x=x,y=y,fill=factor(id)),data=plotquants,alpha=1,na.rm = T)
-  
+
   return(list(quants=quants,plotquants=plotquants,geom=geom))
 }
 
-vioQtile <- function(gg=NULL,qtiles=NULL,probs=seq(0,1,.25),labels=paste(probs[-1]*100),withData=FALSE){
+vioQtile <- function(gg=NULL,qtiles=NULL,probs=seq(0,1,.25),labels=paste(probs[-1]*100),withData=F,usecol=F){
   require(ggplot2)
   # SETUP VIOLIN QUANTILE PLOTS -----------------------------------
   # This is adapted from: http://stackoverflow.com/questions/22278951/combining-violin-plot-with-box-plot
@@ -96,17 +94,23 @@ vioQtile <- function(gg=NULL,qtiles=NULL,probs=seq(0,1,.25),labels=paste(probs[-
   # - Deal with original data
   # - More input, more output
   # Changed 05/30/2018 [MMF] - minor aesthetic tweaks
+  # 11/20/2019 [MMF] - improve quantile handling
   g.df <- ggplot_build(gg)$data[[1]]    # use ggbuild to get the outline co-ords
-  
+
   ifelse(is.null(qtiles),{
     gg <- gg + lapply(unique(g.df$group), function(x) fill_viol(g.df[g.df$group==x, ],x,NULL,probs)$geom)},{
       gg <- gg + lapply(unique(g.df$group), function(x) fill_viol(g.df[g.df$group==x, ],x,qtiles[x, ],probs)$geom)}
   )
-  
-  gg <- gg + geom_hline(aes(yintercept=0)) +
-    scale_fill_grey(name="Quantile\n",labels=labels,guide=guide_legend(reverse=T,label.position="right")) +
-    stat_summary(fun.y=median, geom="point", size=4, color="grey50", shape=22, fill="white")
-  
+
+  ifelse(usecol,{
+    gg <- gg +
+      scale_fill_hue(name="Quantile",labels=labels,guide=guide_legend(reverse=T,label.position="right"),h=c(250,300)) +
+      stat_summary(fun.y=mean, geom="point", size=5, color="grey50", shape=22, fill="red")},{
+        gg <- gg +
+          scale_fill_grey(name="Quantile",labels=labels,guide=guide_legend(reverse=T,label.position="right")) +
+          stat_summary(fun.y=mean, geom="point", size=3.5, color="grey50", shape=22, fill="white")
+      })
+
   if(withData){
     ifelse(is.null(qtiles),{
       ggData <- lapply(unique(g.df$group), function(x) fill_viol(g.df[g.df$group==x,],x,NULL,probs))},{
@@ -133,12 +137,12 @@ vioQtile <- function(gg=NULL,qtiles=NULL,probs=seq(0,1,.25),labels=paste(probs[-
 #
 multi.PLOT <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
   require(grid)
-  
+
   # Make a list from the ... arguments and plotlist
   plots <- c(list(...), plotlist)
-  
+
   numPlots = length(plots)
-  
+
   # If layout is NULL, then use 'cols' to determine layout
   if (is.null(layout)) {
     # Make the panel
@@ -147,20 +151,20 @@ multi.PLOT <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
     layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
                      ncol = cols, nrow = ceiling(numPlots/cols))
   }
-  
+
   if (numPlots==1) {
     print(plots[[1]])
-    
+
   } else {
     # Set up the page
     grid.newpage()
     pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
-    
+
     # Make each plot, in the correct location
     for (i in 1:numPlots) {
       # Get the i,j matrix positions of the regions that contain this subplot
       matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
-      
+
       print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
                                       layout.pos.col = matchidx$col))
     }

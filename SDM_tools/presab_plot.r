@@ -6,7 +6,7 @@
 #
 # Michelle M. Fink, michelle.fink@colostate.edu
 # Colorado Natural Heritage Program, Colorado State University
-# Code Last Modified 05/30/2018. 
+# Code Last Modified 11/20/2019.
 #
 # Adapted from:
 # https://www.shinyapps.org/apps/RGraphCompendium/index.php
@@ -28,7 +28,7 @@
 # along with this program.  If not, see https://www.gnu.org/licenses/
 #############################################################################
 
-setwd("D:/GIS/Projects/YourProject")
+setwd("C:/Path/To/Project")
 library(readr)
 library(plyr)
 library(dplyr)
@@ -42,13 +42,14 @@ mytheme <- gg.theme("clean", useArial=T)
 probs <- seq(0,1,.25)
 qtiles <- ldply(unique(Pres_Abs),function(gr) quantile(SPIDIL_MeanModel[Pres_Abs==gr],probs,na.rm=T,type=3,include.lowest=T))
 
-g.pv <- ggplot(Model_Results,aes(x=Pres_Abs,y=SPIDIL_MeanModel)) + 
+g.pv <- ggplot(Model_Results,aes(x=Pres_Abs,y=SPIDIL_MeanModel)) +
   geom_violin(aes(group=Pres_Abs),scale="width",color="grey80",fill="grey80",trim=T, adjust=0.8)
 
 g.pv0 <- vioQtile(g.pv,qtiles=qtiles,probs,withData=T)
 
 g.pv1 <- g.pv0$ggGraph + ggtitle("Probability value at each [A]bsence and [P]resence point") + xlab("") +
   ylab("random forest output") + mytheme +
+  expand_limits(y = c(0,0.8)) + scale_y_continuous(expand = c(0,0)) +
   theme(legend.position=c(0.1,0.8), legend.text=element_text(size=10),
   legend.title=element_text(size=14), axis.text.x=element_text(size=14),
   axis.text.y=element_text(size=14), axis.title.y=element_text(size=14, vjust=2.6),
