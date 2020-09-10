@@ -3,7 +3,7 @@
 #
 # Michelle M. Fink, michelle.fink@colostate.edu
 # Colorado Natural Heritage Program, Colorado State University
-# Code Last Modified 11/20/2019.
+# Code Last Modified 09/10/2020.
 #
 # Adapted from:
 # https://www.shinyapps.org/apps/RGraphCompendium/index.php
@@ -67,19 +67,19 @@ fill_viol<-function(gr.df,gr,qtile=NULL,probs){
       cuts <- cut(gr.df$y, breaks = qtile, na.rm=T)
     }
   )
-  quants <- mutate(gr.df,
+  quants <- dplyr::mutate(gr.df,
                    x.l=x-violinwidth/2,
                    x.r=x+violinwidth/2,
                    cuts=cuts)
 
-  quants <- filter(quants, !is.na(cuts))
+  quants <- dplyr::filter(quants, !is.na(cuts))
 
   plotquants <- data.frame(x=c(quants$x.l,rev(quants$x.r)),
                            y=c(quants$y,rev(quants$y)),
                            id=c(quants$cuts,rev(quants$cuts)))
 
   #cut by quantile to create polygon id
-  geom <- geom_polygon(aes(x=x,y=y,fill=factor(id)),data=plotquants,alpha=1,na.rm = T)
+  geom <- geom_polygon(aes(x=x,y=y,fill=factor(id)),data=plotquants,na.rm=T)
 
   return(list(quants=quants,plotquants=plotquants,geom=geom))
 }
